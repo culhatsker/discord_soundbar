@@ -76,7 +76,7 @@ class MusicCommands(commands.Cog):
     async def stop(self, ctx):
         """Stops and disconnects the bot from voice"""
 
-        await ctx.voice_client.disconnect()
+        ctx.voice_client.stop()
 
     @play.before_invoke
     async def ensure_voice(self, ctx):
@@ -127,7 +127,12 @@ class MusicCommands(commands.Cog):
                 print(traceback.print_exc())
                 await ctx.send(f"Can't play this song: {repr(ex)}")
                 continue
-            while ctx.voice_client.is_playing():
+            while True:
+                if ctx.voice_client is None:
+                    # actually it's an error
+                    return
+                if not ctx.voice_client.is_playing():
+                    break
                 await asyncio.sleep(0.1)
 
 

@@ -1,10 +1,11 @@
+from asyncio.events import get_event_loop
 from dataclasses import dataclass
 from datetime import timedelta
 
 import aiohttp
 import discord
 from discord.object import Object
-from youtube_dl.postprocessor import ffmpeg
+from youtube_search import YoutubeSearch
 
 import ytdl_source
 
@@ -65,7 +66,7 @@ class AudioSource:
     async def from_query(query):
         query = query.strip()
         if not (query.startswith("https://") or query.startswith("http://")):
-            raise NotImplementedError()
+            return await YouTubeSearchAudioSource.from_query(query)
         mime_type = await AudioSource._get_mime_type_of_url(query)
         if mime_type.split("/")[0] in {"video", "audio"}:
             return await PlainAudioSource.from_query(query)
@@ -140,9 +141,13 @@ class YTDLAudioSource(AudioSource):
 class YouTubeSearchAudioSource(AudioSource):
     @staticmethod
     async def from_query(query):
-        raise NotImplementedError()
-        # first_result_url = None  # TODO
-        # return YTDLAudioSource.from_query(first_result_url)
+        def _search(query):
+            return YoutubeSearch(query, max_results=5).videos
+        results = await get_event_loop().run_in_executor(None, _search, query)
+        if not results:
+            raise Exception("Can't find anything on YouTube for this search query.")
+        first_result_url = "https://www.youtube.com" + results[0]["url_suffix"]
+        return await YTDLAudioSource.from_query(first_result_url)
 
 
 class MusicPlayerQueue:
