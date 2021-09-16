@@ -1,4 +1,4 @@
-discord.py
-youtube_dl
-aiohttp==3.7
-youtube-search
+discord.py==1.7.3
+youtube_dl==2021.4.7
+aiohttp==3.7.4
+youtube-search==2.1.0

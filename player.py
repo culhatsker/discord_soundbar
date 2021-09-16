@@ -88,7 +88,7 @@ class AudioSource:
     def get_audio_source(self):
         return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(
             self.get_streaming_url(), options=self.ffmpeg_options,
-            before_options=self.ffmpeg_before_options), volume=0.02)
+            before_options=self.ffmpeg_before_options), volume=0.5)
 
 
 class PlainAudioSource(AudioSource):
