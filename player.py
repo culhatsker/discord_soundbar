@@ -10,6 +10,9 @@ from youtube_search import YoutubeSearch
 import ytdl_source
 
 
+DEFAULT_VOLUME = 0.5
+
+
 @dataclass
 class AudioTrackInfo:
     artist: str
@@ -76,9 +79,12 @@ class AudioSource:
         raise NotImplementedError()
 
     def get_audio_source(self):
+        before_options = self.ffmpeg_before_options
+        if hasattr(self, "seek_to"):
+            before_options += " -ss " + self.seek_to
         return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(
             self.get_streaming_url(), options=self.ffmpeg_options,
-            before_options=self.ffmpeg_before_options), volume=0.5)
+            before_options=before_options), volume=DEFAULT_VOLUME)
 
 
 class PlainAudioSource(AudioSource):
@@ -144,6 +150,7 @@ class MusicPlayerQueue:
     def __init__(self) -> None:
         self._queue = []
         self._queue_current = None
+        self.seek_requested = None
 
     @property
     def next_up(self):
@@ -158,7 +165,7 @@ class MusicPlayerQueue:
         else:
             return len(self._queue) > self._queue_current + 1
 
-    def next_track(self):
+    def next_track(self) -> AudioSource:
         if not self.queue_has_items():
             return None
         if self._queue_current is None:
