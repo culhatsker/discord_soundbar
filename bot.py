@@ -1,14 +1,16 @@
 
 import os
 import asyncio
+import traceback
 from typing import Dict, List
 
 import discord
+from discord import embeds
 from discord.ext import commands
 from discord.ext.commands.context import Context
 
 from player import MusicPlayerQueue, AudioSource, AudioTrackInfo
-from views import render_queue, render_volume, render_error
+from views import render_queue, render_volume, render_error, render_track
 
 
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
@@ -43,13 +45,25 @@ class MusicCommands(commands.Cog):
             self._sessions[ctx.guild] = session
             new_session = True
         try:
-            new_items: List[AudioTrackInfo] = list(
+            new_items: List[AudioSource] = list(
                 await AudioSource.from_query(query))
+            for queue_item in new_items:
+                queue_item.user_tag = ctx.message.author.name
+            if len(new_items) == 1:
+                embed = render_track(await new_items[0].track_info)
+            elif not new_items:
+                return
+            else:
+                new_items_info = await asyncio.gather(*[
+                    item.track_info
+                    for item in new_items
+                ])
+                embed = render_queue(new_items_info)
+            await ctx.send(embed=embed)
         except Exception as error:
-            await ctx.send(embed=render_error(error))
+            traceback.print_exc()
+            await ctx.send(embed=render_error(repr(error)))
             return
-        for queue_item in new_items:
-            queue_item.user = ctx.message.author
         session.add_to_queue(new_items)
         if new_session:
             await self.play_session(ctx)
@@ -58,9 +72,9 @@ class MusicCommands(commands.Cog):
     async def queue(self, ctx):
         queue_info: List[AudioTrackInfo] = await asyncio.gather(*[
             queue_item.track_info
-            for queue_item in self._sessions[ctx.guild].queue
+            for queue_item in self._sessions[ctx.guild].next_up
         ])
-        await ctx.send(embed=render_queue(queue_info))
+        await ctx.send(embed=render_queue(queue_info, title="Next up..."))
 
     @commands.command(aliases=["s"])
     async def skip(self, ctx):
@@ -109,7 +123,8 @@ class MusicCommands(commands.Cog):
             session = self._sessions[ctx.guild]
             return await self._play_session(ctx, session)
         except Exception as error:
-            await ctx.send(embed=render_error(error))
+            traceback.print_exc()
+            await ctx.send(embed=render_error(repr(error)))
         finally:
             await ctx.voice_client.disconnect()
             del self._sessions[ctx.guild]
@@ -125,13 +140,14 @@ class MusicCommands(commands.Cog):
             try:
                 audio_source = current_track.get_audio_source()
                 track_info = await current_track.track_info
-                await ctx.send(f"Currently playing: {str(track_info)}")
+                await ctx.send(embed=render_track(track_info, title="Now playing"))
                 if ctx.voice_client.is_playing():
                     ctx.voice_client.stop()
                 ctx.voice_client.play(audio_source,
                     after=lambda err: err and print(f"Player error: {err}"))
             except Exception as error:
-                await ctx.send(embed=render_error(error))
+                traceback.print_exc()
+                await ctx.send(embed=render_error(repr(error)))
                 continue
             while True:
                 if ctx.voice_client is None:

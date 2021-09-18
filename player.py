@@ -17,36 +17,24 @@ class AudioTrackInfo:
     duration: timedelta
     user_tag: Object = None
 
-    @staticmethod
-    def _split_seconds(seconds):
-        remain = seconds
+    @property
+    def str_duration(self):
+        days = self.duration.days
+        remain = self.duration.seconds
         secs = remain % 60
         remain //= 60
         mins = remain % 60
         hours = remain // 60
-        return hours, mins, secs
-
-    def __str__(self):
-        s = self.title or "Unknown title"
-        if self.artist:
-            s += " by " + self.artist
-        if self.duration:
-            days = self.duration.days
-            hours, mins, secs = \
-                AudioTrackInfo._split_seconds(self.duration.seconds)
-            if days:
-                s += f" {days} days {hours} hours {mins} minutes {secs} seconds"
-            elif hours:
-                s += f" {hours}:{mins}:{secs}"
-            else:
-                s += f" {mins}:{secs}"
-        if self.user_tag:
-            s += f" requested by {self.user_tag}"
-        return s
+        if days:
+            return f" {days} days {hours} hours {mins} minutes {secs} seconds"
+        elif hours:
+            return f" {hours}:{mins}:{secs}"
+        else:
+            return f" {mins}:{secs}"
 
 
 class AudioSource:
-    ffmpeg_options="-vn"
+    ffmpeg_options="-vn -bufsize 5"
     ffmpeg_before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
 
 
@@ -79,7 +67,9 @@ class AudioSource:
     @property
     async def track_info(self) -> AudioTrackInfo:
         if not hasattr(self, "_track_info"):
-            self._track_info = self.get_track_info()
+            self._track_info: AudioTrackInfo = self.get_track_info()
+            if hasattr(self, "user_tag"):
+                self._track_info.user_tag = self.user_tag
         return self._track_info
 
     def get_streaming_url(self):
@@ -156,8 +146,8 @@ class MusicPlayerQueue:
         self._queue_current = None
 
     @property
-    def queue(self):
-        return self._queue
+    def next_up(self):
+        return self._queue[self._queue_current:]
 
     def add_to_queue(self, new_items):
         self._queue.extend(new_items)
