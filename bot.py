@@ -1,5 +1,4 @@
 
-import traceback
 import os
 import asyncio
 from typing import Dict, List
@@ -9,6 +8,7 @@ from discord.ext import commands
 from discord.ext.commands.context import Context
 
 from player import MusicPlayerQueue, AudioSource, AudioTrackInfo
+from views import render_queue, render_volume, render_error
 
 
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
@@ -31,7 +31,7 @@ class MusicCommands(commands.Cog):
 
         await channel.connect()
 
-    @commands.command()
+    @commands.command(aliases=["p"])
     async def play(self, ctx, *, query):
         """Plays music from different sources"""
 
@@ -42,27 +42,31 @@ class MusicCommands(commands.Cog):
             session = MusicPlayerQueue()
             self._sessions[ctx.guild] = session
             new_session = True
-        new_items: List[AudioTrackInfo] = list(
-            await AudioSource.from_query(query))
+        try:
+            new_items: List[AudioTrackInfo] = list(
+                await AudioSource.from_query(query))
+        except Exception as error:
+            await ctx.send(embed=render_error(error))
+            return
         for queue_item in new_items:
             queue_item.user = ctx.message.author
         session.add_to_queue(new_items)
         if new_session:
             await self.play_session(ctx)
     
-    @commands.command()
+    @commands.command(aliases=["q"])
     async def queue(self, ctx):
-        queue_info = await asyncio.gather(*[
+        queue_info: List[AudioTrackInfo] = await asyncio.gather(*[
             queue_item.track_info
             for queue_item in self._sessions[ctx.guild].queue
         ])
-        await ctx.send("\n".join(map(str, queue_info)))
+        await ctx.send(embed=render_queue(queue_info))
 
-    @commands.command()
+    @commands.command(aliases=["s"])
     async def skip(self, ctx):
         ctx.voice_client.stop()
 
-    @commands.command()
+    @commands.command(aliases=["vol", "v"])
     async def volume(self, ctx, volume: int):
         """Changes the player's volume"""
 
@@ -70,7 +74,7 @@ class MusicCommands(commands.Cog):
             return await ctx.send("Not connected to a voice channel.")
 
         ctx.voice_client.source.volume = volume / 100
-        await ctx.send(f"Changed volume to {volume}%")
+        await ctx.send(embed=render_volume(volume))
 
     @commands.command()
     async def stop(self, ctx):
@@ -88,11 +92,6 @@ class MusicCommands(commands.Cog):
                 raise commands.CommandError("Author not connected to a voice channel.")
 
     @staticmethod
-    def player_error_handler(error):
-        if error:
-            print(f"Player error: {error}")
-
-    @staticmethod
     async def wait_for_value(func, timeout, check_interval=0.1):
         max_iterations = timeout / check_interval
         iterations = 0
@@ -105,16 +104,23 @@ class MusicCommands(commands.Cog):
                 raise TimeoutError
             await asyncio.sleep(check_interval)
 
-    async def play_session(self, ctx: Context):
-        queue = self._sessions[ctx.guild]
+    async def play_session(self, ctx):
+        try:
+            session = self._sessions[ctx.guild]
+            return await self._play_session(ctx, session)
+        except Exception as error:
+            await ctx.send(embed=render_error(error))
+        finally:
+            await ctx.voice_client.disconnect()
+            del self._sessions[ctx.guild]
+
+    async def _play_session(self, ctx: Context, session):
         while True:
             try:
                 current_track = await self.wait_for_value(
-                    queue.next_track, timeout=5*60)
+                    session.next_track, timeout=5*60)
             except TimeoutError:
                 await ctx.send("Bye, bitch. Call me again if you need more music.")
-                await ctx.voice_client.disconnect()
-                del self._sessions[ctx.guild]
                 return
             try:
                 audio_source = current_track.get_audio_source()
@@ -122,10 +128,10 @@ class MusicCommands(commands.Cog):
                 await ctx.send(f"Currently playing: {str(track_info)}")
                 if ctx.voice_client.is_playing():
                     ctx.voice_client.stop()
-                ctx.voice_client.play(audio_source, after=self.player_error_handler)
-            except Exception as ex:
-                print(traceback.print_exc())
-                await ctx.send(f"Can't play this song: {repr(ex)}")
+                ctx.voice_client.play(audio_source,
+                    after=lambda err: err and print(f"Player error: {err}"))
+            except Exception as error:
+                await ctx.send(embed=render_error(error))
                 continue
             while True:
                 if ctx.voice_client is None:
