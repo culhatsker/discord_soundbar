@@ -1,13 +1,12 @@
-from asyncio.events import get_event_loop
-from dataclasses import dataclass
+import asyncio
 from datetime import timedelta
+from dataclasses import dataclass
 
 import aiohttp
 import discord
-from discord.object import Object
 from youtube_search import YoutubeSearch
 
-import ytdl_source
+from . import youtube_dl_glue
 
 
 DEFAULT_VOLUME = 0.5
@@ -18,7 +17,7 @@ class AudioTrackInfo:
     artist: str
     title: str
     duration: timedelta
-    user_tag: Object = None
+    user_tag: object = None
 
     @property
     def str_duration(self):
@@ -113,7 +112,7 @@ class YTDLAudioSource(AudioSource):
 
     @staticmethod
     async def from_query(query):
-        ytdl_info = await ytdl_source.get_info(query)
+        ytdl_info = await youtube_dl_glue.get_info(query)
         return [YTDLAudioSource(info) for info in ytdl_info]
 
     def get_track_info(self):
@@ -139,37 +138,9 @@ class YouTubeSearchAudioSource(AudioSource):
     async def from_query(query):
         def _search(query):
             return YoutubeSearch(query, max_results=5).videos
-        results = await get_event_loop().run_in_executor(None, _search, query)
+        results = await asyncio.get_event_loop()\
+            .run_in_executor(None, _search, query)
         if not results:
             raise Exception("Can't find anything on YouTube for this search query.")
         first_result_url = "https://www.youtube.com" + results[0]["url_suffix"]
         return await YTDLAudioSource.from_query(first_result_url)
-
-
-class MusicPlayerQueue:
-    def __init__(self) -> None:
-        self._queue = []
-        self._queue_current = None
-        self.seek_requested = None
-
-    @property
-    def next_up(self):
-        return self._queue[self._queue_current:]
-
-    def add_to_queue(self, new_items):
-        self._queue.extend(new_items)
-
-    def queue_has_items(self):
-        if self._queue_current is None:
-            return bool(self._queue)
-        else:
-            return len(self._queue) > self._queue_current + 1
-
-    def next_track(self) -> AudioSource:
-        if not self.queue_has_items():
-            return None
-        if self._queue_current is None:
-            self._queue_current = 0
-        else:
-            self._queue_current += 1
-        return self._queue[self._queue_current]

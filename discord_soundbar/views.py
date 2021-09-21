@@ -1,9 +1,8 @@
-import traceback
 from typing import List
 
 import discord
 
-from player import AudioTrackInfo
+from .audio_source import AudioTrackInfo
 
 
 BRAND_COLOR = 0xe291d6
