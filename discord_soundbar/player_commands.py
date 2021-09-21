@@ -52,6 +52,8 @@ class MusicPlayerCommands(commands.Cog):
             await ctx.send(embed=render_error(repr(error)))
             return
         session.add_to_queue(new_items)
+        discord.Emoji
+        await ctx.message.add_reaction("👍")
         if new_session:
             await self.play_session(ctx)
     
