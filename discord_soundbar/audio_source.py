@@ -21,6 +21,8 @@ class AudioTrackInfo:
 
     @property
     def str_duration(self):
+        if self.duration is None:
+            return ''
         days = self.duration.days
         remain = self.duration.seconds
         secs = remain % 60
