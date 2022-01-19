@@ -1,6 +1,6 @@
 import asyncio
 
-import youtube_dl
+import yt_dlp as youtube_dl
 
 
 # Suppress noise about console usage from errors
