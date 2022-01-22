@@ -3,7 +3,12 @@ from os import environ
 
 
 YOUTUBE_API_KEY = environ.get("YOUTUBE_API_KEY")
+
 YOUTUBE_REGION = environ.get("YOUTUBE_REGION") or "US"
+YOUTUBE_LANGUAGE = environ.get("YOUTUBE_LANGUAGE") or "en"
+# see regionCode and relevance language at
+# https://developers.google.com/youtube/v3/docs/search/list
+
 SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 
@@ -24,7 +29,9 @@ class YouTubeSearch:
             "q": self.query,
             "videoCategoryId": 10,
             "key": YOUTUBE_API_KEY,
-            "maxResults": self.max_results
+            "maxResults": self.max_results,
+            "regionCode": YOUTUBE_REGION,
+            "relevanceLanguage": YOUTUBE_LANGUAGE
         })
         async with request_coro as resp:
             resp = await resp.json()
