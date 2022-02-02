@@ -2,7 +2,7 @@ from typing import List
 
 import discord
 
-from .audio_source import AudioTrackInfo
+from .audio_source import AudioTrack
 
 
 BRAND_COLOR = 0xe291d6
@@ -14,9 +14,9 @@ def render_track(track_info, title="New track"):
         f"added by **{track_info.user_tag}**", color=BRAND_COLOR)
 
 
-def render_queue(queue_info: List[AudioTrackInfo], title="New tracks") -> discord.Embed:
+def render_queue(queue_info: List[AudioTrack], title="New tracks") -> discord.Embed:
     description = '\n'.join(
-        f'♫ **{i.title}** by **{i.artist}** ({i.str_duration}) added by **{i.user_tag}**'
+        f'♫ **{i.title}** by **{i.artist}** ({i.duration}) added by **{i.usertag}**'
         for i in queue_info
     )
     return discord.Embed(title=title,

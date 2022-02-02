@@ -2,14 +2,14 @@ from aiohttp import request
 from os import environ
 
 
-YOUTUBE_API_KEY = environ.get("YOUTUBE_API_KEY")
-
+SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 YOUTUBE_REGION = environ.get("YOUTUBE_REGION") or "US"
 YOUTUBE_LANGUAGE = environ.get("YOUTUBE_LANGUAGE") or "en"
-# see regionCode and relevance language at
-# https://developers.google.com/youtube/v3/docs/search/list
-
-SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
+YOUTUBE_API_KEY = environ.get("YOUTUBE_API_KEY")
+if YOUTUBE_API_KEY is None:
+    err = "No YOUTUBE_API_KEY environment variable is defined"
+    print(err)
+    raise Exception(err)
 
 
 class APIError(Exception):
@@ -29,9 +29,7 @@ class YouTubeSearch:
             "q": self.query,
             "videoCategoryId": 10,
             "key": YOUTUBE_API_KEY,
-            "maxResults": self.max_results,
-            "regionCode": YOUTUBE_REGION,
-            "relevanceLanguage": YOUTUBE_LANGUAGE
+            "maxResults": self.max_results
         })
         async with request_coro as resp:
             resp = await resp.json()
