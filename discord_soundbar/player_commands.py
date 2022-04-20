@@ -53,7 +53,7 @@ class MusicPlayerCommands(commands.Cog):
             return
         session.add_to_queue(new_items)
         discord.Emoji
-        await ctx.message.add_reaction("🆗")
+        await ctx.message.add_reaction("🎶")
         if new_session:
             await self.play_session(ctx)
     
