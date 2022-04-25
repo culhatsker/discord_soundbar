@@ -141,7 +141,7 @@ class MusicPlayerCommands(commands.Cog):
         while True:
             try:
                 current_track: AudioSource = await self.wait_for_value(
-                    session.next_track, timeout=5*60)
+                    session.next_track, timeout=30)
             except TimeoutError:
                 await ctx.send("Bye, bitch. Call me again if you need more music.")
                 return
