@@ -6,8 +6,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands.context import Context
 
-from .queue import MusicPlayerQueue
-from .audio_source import AudioSource, AudioTrackInfo
+from .queue import MusicPlayerQueue, QueueItem
 from .views import render_queue, render_volume, render_error, render_track
 
 
@@ -36,23 +35,18 @@ class MusicPlayerCommands(commands.Cog):
             session = MusicPlayerQueue()
             self._sessions[ctx.guild] = session
             new_session = True
+
         try:
-            new_items: List[AudioSource] = list(
-                await AudioSource.from_query(query))
-            for queue_item in new_items:
-                queue_item.user_tag = ctx.message.author.name
+            new_items: List[QueueItem] = await QueueItem.from_query(
+                query, user_tag=ctx.message.author.name)
             if new_items and len(new_items) > 1:
-                new_items_info = await asyncio.gather(*[
-                    item.track_info
-                    for item in new_items
-                ])
-                await ctx.send(embed=render_queue(new_items_info))
+                # render new items if playlist
+                await ctx.send(embed=render_queue(new_items))
         except Exception as error:
             traceback.print_exc()
             await ctx.send(embed=render_error(repr(error)))
             return
-        session.add_to_queue(new_items)
-        discord.Emoji
+        session.add(new_items)
         await ctx.message.add_reaction("👍")
         if new_session:
             await self.play_session(ctx)
@@ -60,11 +54,8 @@ class MusicPlayerCommands(commands.Cog):
     @commands.command(aliases=["q"])
     async def queue(self, ctx):
         """Show tracks in queue"""
-        queue_info: List[AudioTrackInfo] = await asyncio.gather(*[
-            queue_item.track_info
-            for queue_item in self._sessions[ctx.guild].next_up
-        ])
-        await ctx.send(embed=render_queue(queue_info, title="Next up..."))
+        await ctx.send(embed=render_queue(
+            self._sessions[ctx.guild].queue, title="Next up..."))
 
     @commands.command()
     async def skip(self, ctx):
@@ -83,7 +74,7 @@ class MusicPlayerCommands(commands.Cog):
             return
         try:
             session = self._sessions[ctx.guild]
-            session.seek_requested = ":".join(map(str, parts))
+            session.seek_position = ":".join(map(str, parts))
         except KeyError:
             await ctx.send("Nothing is playing")
 
@@ -140,18 +131,17 @@ class MusicPlayerCommands(commands.Cog):
         after_play = lambda err: err and print(f"Player error: {err}")
         while True:
             try:
-                current_track: AudioSource = await self.wait_for_value(
-                    session.next_track, timeout=5*60)
+                current_track: QueueItem = await self.wait_for_value(
+                    session.pop_track, timeout=5*60)
             except TimeoutError:
                 await ctx.send("Bye, bitch. Call me again if you need more music.")
                 return
             try:
-                audio_source = current_track.get_audio_source()
-                track_info = await current_track.track_info
-                await ctx.send(embed=render_track(track_info, title="Now playing"))
+                pcm_audio = await current_track.get_playable_source()
+                await ctx.send(embed=render_track(current_track, title="Now playing"))
                 if ctx.voice_client.is_playing():
                     ctx.voice_client.stop()
-                ctx.voice_client.play(audio_source, after=after_play)
+                ctx.voice_client.play(pcm_audio, after=after_play)
             except Exception as error:
                 traceback.print_exc()
                 await ctx.send(embed=render_error(repr(error)))
@@ -162,10 +152,12 @@ class MusicPlayerCommands(commands.Cog):
                     return
                 if not ctx.voice_client.is_playing():
                     break
-                if session.seek_requested:
-                    current_track.seek_to = session.seek_requested
-                    new_audio_source = current_track.get_audio_source()
+                if session.seek_position:
                     ctx.voice_client.stop()
-                    ctx.voice_client.play(new_audio_source, after=after_play)
-                    session.seek_requested = None
+                    ctx.voice_client.play(
+                        await current_track.get_playable_source(
+                            seek_to=session.seek_position),
+                        after=after_play
+                    )
+                    session.seek_position = None
                 await asyncio.sleep(0.1)
