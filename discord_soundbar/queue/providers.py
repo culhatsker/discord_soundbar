@@ -27,7 +27,7 @@ class FileProvider:
             "query": query,
             "artist": None,
             "title": None,
-            "suration": None
+            "duration": None
         }]
 
     @staticmethod
@@ -57,7 +57,8 @@ class YTDLProvider:
             "query": YTDLProvider.url_from_id(video_info["id"]),
             "artist": channel,
             "title": title,
-            "duration": timedelta(seconds=duration)
+            "duration": timedelta(seconds=duration),
+            "cached_streaming_url": video_info["url"]
         }
 
     @staticmethod

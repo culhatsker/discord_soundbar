@@ -42,6 +42,7 @@ def get_ffaudio_from_streaming_url(streaming_url, volume, seek_to):
 
 @dataclass
 class QueueItem:
+    # keys of QUEUE_PROVIDERS
     provider_name: str
 
     # these are fields filled by Provider
@@ -50,6 +51,9 @@ class QueueItem:
     title: str
     duration: timedelta
     # ----
+
+    # this one may be filled by provider to save an extra request
+    cached_streaming_url: str = None
 
     user_tag: str = None
 
@@ -94,8 +98,13 @@ class QueueItem:
     def provider(self) -> Provider:
         return QUEUE_PROVIDERS[self.provider_name]
 
-    async def get_playable_source(self, volume=0.5, seek_to=0) -> PCMVolumeTransformer:
-        streaming_url = await self.provider.get_streaming_url(self.query)
+    async def get_playable_source(self, volume=0.5, seek_to=0, cached=False) -> PCMVolumeTransformer:
+        if cached and self.cached_streaming_url:
+            # maybe check "expires" of TouTube streaming urls?
+            streaming_url = self.cached_streaming_url
+        else:
+            streaming_url = await self.provider.get_streaming_url(self.query)
+            self.cached_streaming_url = streaming_url
         return get_ffaudio_from_streaming_url(streaming_url, volume, seek_to)
 
     @property
@@ -109,11 +118,11 @@ class QueueItem:
         mins = remain % 60
         hours = remain // 60
         if days:
-            return f" {days}d {hours}h {mins}m {secs}s"
+            return f"{days}d {hours}h {mins}m {secs}s"
         elif hours:
-            return f" {hours}h {mins}m {secs}s"
+            return f"{hours}h {mins}m {secs}s"
         else:
-            return f" {mins}h {secs}s"
+            return f"{mins}m {secs}s"
 
 
 class MusicPlayerQueue:

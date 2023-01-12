@@ -156,7 +156,7 @@ class MusicPlayerCommands(commands.Cog):
                     ctx.voice_client.stop()
                     ctx.voice_client.play(
                         await current_track.get_playable_source(
-                            seek_to=session.seek_position),
+                            seek_to=session.seek_position, cached=True),
                         after=after_play
                     )
                     session.seek_position = None
