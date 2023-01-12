@@ -26,13 +26,16 @@ async def get_mime_type_of_url(url):
         return None
 
 
-def get_ffaudio_from_streaming_url(streaming_url, volume, seek_to):
+def get_ffaudio_from_streaming_url(streaming_url, volume, seek_to, elvin=False):
     before_options = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
     if seek_to:
         before_options += " -ss " + seek_to
+    ffoptions = "-vn"
+    if elvin:
+        ffoptions += f" -af \"rubberband=tempo=1.0:pitch=1.5:pitchq=quality\""
     ffaudio = FFmpegPCMAudio(
         streaming_url,
-        options="-vn",
+        options=ffoptions,
         before_options=before_options
     )
     ffaudio = PCMVolumeTransformer(ffaudio, volume=volume)
@@ -52,13 +55,14 @@ class QueueItem:
     duration: timedelta
     # ----
 
+    elvinmode: bool
+    user_tag: str = None
+
     # this one may be filled by provider to save an extra request
     cached_streaming_url: str = None
 
-    user_tag: str = None
-
     @staticmethod
-    async def from_query(query, user_tag=None) -> "QueueItem":
+    async def from_query(query, user_tag=None, elvin=False) -> "QueueItem":
         query = query.strip()
         provider = None
         if not (query.startswith("https://") or query.startswith("http://")):
@@ -77,6 +81,7 @@ class QueueItem:
             QueueItem(
                 provider_name=provider.name,
                 user_tag=user_tag,
+                elvinmode=elvin,
                 **qinfo
             )
             for qinfo in await provider.from_query(query)
@@ -105,7 +110,7 @@ class QueueItem:
         else:
             streaming_url = await self.provider.get_streaming_url(self.query)
             self.cached_streaming_url = streaming_url
-        return get_ffaudio_from_streaming_url(streaming_url, volume, seek_to)
+        return get_ffaudio_from_streaming_url(streaming_url, volume, seek_to, elvin=self.elvinmode)
 
     @property
     def str_duration(self):

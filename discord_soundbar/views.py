@@ -16,7 +16,7 @@ def render_track(track_info, title="New track"):
 
 def render_queue(queue_info: List[QueueItem], title="New tracks") -> Embed:
     if not queue_info:
-        return Embed(title="No items in the queue.")
+        return Embed(title="No songs in the queue.")
     description = '\n'.join(
         f'♫ **{i.title}** by **{i.artist}** ({i.str_duration}) added by **{i.user_tag}**'
         for i in queue_info

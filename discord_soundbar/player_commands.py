@@ -24,9 +24,11 @@ class MusicPlayerCommands(commands.Cog):
 
         await channel.connect()
 
-    @commands.command(aliases=["p"])
+    @commands.command(aliases=["p", "elvinplay", "ep"])
     async def play(self, ctx, *, query):
         """Play music from different sources"""
+
+        elvinmode = ctx.invoked_with in ["elvinplay", "ep"]
 
         new_session = False
         try:
@@ -38,7 +40,7 @@ class MusicPlayerCommands(commands.Cog):
 
         try:
             new_items: List[QueueItem] = await QueueItem.from_query(
-                query, user_tag=ctx.message.author.name)
+                query, user_tag=ctx.message.author.name, elvin=elvinmode)
             if new_items and len(new_items) > 1:
                 # render new items if playlist
                 await ctx.send(embed=render_queue(new_items))
