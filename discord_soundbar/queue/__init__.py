@@ -1,13 +1,15 @@
-from typing import List
+from typing import List, Optional
 
 from datetime import timedelta
 from dataclasses import dataclass, asdict
 from json import dumps, loads
+from os import environ
 
 from aiohttp import request
-from discord import FFmpegPCMAudio, PCMVolumeTransformer
+from discord import FFmpegAudio, FFmpegPCMAudio, PCMVolumeTransformer
 
 from .providers import Provider, FileProvider, YTDLProvider
+from .proxy import proxies
 
 
 SEARCH_PROVIDER = YTDLProvider
@@ -26,20 +28,22 @@ async def get_mime_type_of_url(url):
         return None
 
 
-def get_ffaudio_from_streaming_url(streaming_url, volume, seek_to, elvin=False):
+def get_ffaudio_from_streaming_url(url, proxy_name, volume, seek_to, elvin=False):
     before_options = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+    if proxy_name:
+        proxy = proxies[proxy_name]
+        before_options += f" -http_proxy \"{proxy}\""
     if seek_to:
         before_options += " -ss " + seek_to
     ffoptions = "-vn"
     if elvin:
         ffoptions += f" -af \"rubberband=tempo=1.0:pitch=1.5:pitchq=quality\""
     ffaudio = FFmpegPCMAudio(
-        streaming_url,
+        url,
         options=ffoptions,
         before_options=before_options
     )
     ffaudio = PCMVolumeTransformer(ffaudio, volume=volume)
-    ffaudio.url = streaming_url
     return ffaudio
 
 
@@ -104,13 +108,13 @@ class QueueItem:
         return QUEUE_PROVIDERS[self.provider_name]
 
     async def get_playable_source(self, volume=0.5, seek_to=0, cached=False) -> PCMVolumeTransformer:
-        if cached and self.cached_streaming_url:
-            # maybe check "expires" of TouTube streaming urls?
-            streaming_url = self.cached_streaming_url
-        else:
-            streaming_url = await self.provider.get_streaming_url(self.query)
-            self.cached_streaming_url = streaming_url
-        return get_ffaudio_from_streaming_url(streaming_url, volume, seek_to, elvin=self.elvinmode)
+        proxy_name = None
+        if cached:
+            proxy_name, url = self.cached_streaming_url
+        if not cached or not self.cached_streaming_url:
+            self.cached_streaming_url = await self.provider.get_streaming_url(self.query, proxy_name)
+            proxy_name, url = self.cached_streaming_url
+        return get_ffaudio_from_streaming_url(url, proxy_name, volume, seek_to, elvin=self.elvinmode)
 
     @property
     def str_duration(self):

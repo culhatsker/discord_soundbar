@@ -2,30 +2,38 @@ import asyncio
 
 import yt_dlp as youtube_dl
 
+from .proxy import proxies
+
 
 # Suppress noise about console usage from errors
 youtube_dl.utils.bug_reports_message = lambda: ''
 
 
-ytdl_format_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    # 'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
+def make_instance(proxy=None):
+    options = {
+        'format': 'bestaudio/best',
+        'ignoreerrors': False,
+        'logtostderr': False,
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'default_search': 'auto'
+    }
+    if proxy:
+        options["proxy"] = proxy
+    return youtube_dl.YoutubeDL(options)
+
+
+proxy_instances = {
+    pname: make_instance(proxy)
+    for pname, proxy in proxies.items()
 }
+proxy_instances[None] = make_instance()
 
 
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+async def ytdl_query(url, proxy_name):
+    ytdl = proxy_instances[proxy_name]
 
-
-async def ytdl_query(url):
     loop = asyncio.get_event_loop()
     data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
 
@@ -34,4 +42,22 @@ async def ytdl_query(url):
     else:
         playlist = [data]
 
-    return playlist
+    return (proxy_name, playlist)
+
+
+async def ytdl_query_autoproxy(url, proxy_name=None):
+    try:
+        return await ytdl_query(url, proxy_name)
+    except youtube_dl.DownloadError as err:
+        if proxy_name is not None:
+            raise
+        if "Video unavailable" not in err.msg:
+            raise
+
+    done, _pending = await asyncio.wait([
+        ytdl_query(url, instance)
+        for instance in proxy_instances.keys()
+        if not instance == None
+    ], return_when=asyncio.FIRST_COMPLETED)
+
+    return next(iter(done)).result()

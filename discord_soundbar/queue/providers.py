@@ -3,7 +3,7 @@ from typing import List, Dict, Optional
 from datetime import timedelta
 
 from .ytapi import youtube_search
-from .ytdl import ytdl_query
+from .ytdl import ytdl_query_autoproxy
 
 
 class Provider:
@@ -14,7 +14,7 @@ class Provider:
         raise NotImplementedError
 
     @staticmethod
-    async def get_streaming_url(_query: str) -> str:
+    async def get_streaming_url(_query: str) -> tuple[str, str]:
         raise NotImplementedError
 
 
@@ -31,8 +31,8 @@ class FileProvider:
         }]
 
     @staticmethod
-    async def get_streaming_url(query: str) -> str:
-        return query
+    async def get_streaming_url(query: str) -> tuple[str, str]:
+        return (None, query)
 
 
 class YTDLProvider:
@@ -43,7 +43,7 @@ class YTDLProvider:
         return f"https://www.youtube.com/watch?v={id_}"
 
     @staticmethod
-    def get_construct_args(video_info) -> Dict:
+    def get_construct_args(video_info, proxy_name) -> Dict:
         duration = video_info.get("duration")
         artist = video_info.get("artist")
         creator = video_info.get("creator")
@@ -58,22 +58,24 @@ class YTDLProvider:
             "artist": channel,
             "title": title,
             "duration": timedelta(seconds=duration),
-            "cached_streaming_url": video_info["url"]
+            "cached_streaming_url": (proxy_name, video_info["url"])
         }
 
     @staticmethod
     async def from_query(query: str) -> List[Dict]:
+        proxy_name, playlist = await ytdl_query_autoproxy(query)
         return [
-            YTDLProvider.get_construct_args(vinfo)
-            for vinfo in await ytdl_query(query)
+            YTDLProvider.get_construct_args(vinfo, proxy_name)
+            for vinfo in playlist
         ]
 
     @staticmethod
-    async def get_streaming_url(query: str) -> str:
-        info = await ytdl_query(query)
+    async def get_streaming_url(query: str, proxy_name=None) -> tuple[str, str]:
+        matched_proxy, info = await ytdl_query_autoproxy(query, proxy_name)
         if len(info) != 1:
-            return None
-        return info[0]["url"]
+            raise Exception("Trying to get info of "
+                "a single video, got more than one result.")
+        return (matched_proxy, info[0]["url"])
 
     @staticmethod
     async def transform_search_query(query: str) -> str:
