@@ -20,3 +20,7 @@ cd ffmpeg
     --enable-muxers --enable-protocols \
     --enable-filter=aresample
 ```
+
+If you use a fallback proxy feature, but have only SOCKS5 proxies in
+possession then you may want to use a socks-to-http proxy converter
+such as this one [https://github.com/KaranGauswami/socks-to-http-proxy].
