@@ -139,7 +139,11 @@ class MusicPlayerCommands(commands.Cog):
                 await ctx.send("Bye, bitch. Call me again if you need more music.")
                 return
             try:
-                pcm_audio = await current_track.get_playable_source()
+                if current_track.position:
+                    seek_to=current_track.position.total_seconds()
+                else:
+                    seek_to=None
+                pcm_audio = await current_track.get_playable_source(seek_to=seek_to)
                 await ctx.send(embed=render_track(current_track, title="Now playing"))
                 if ctx.voice_client.is_playing():
                     ctx.voice_client.stop()

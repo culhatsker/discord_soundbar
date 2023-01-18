@@ -34,7 +34,7 @@ def get_ffaudio_from_streaming_url(url, proxy_name, volume, seek_to, elvin=False
         proxy = proxies[proxy_name]
         before_options += f" -http_proxy \"{proxy}\""
     if seek_to:
-        before_options += " -ss " + seek_to
+        before_options += f" -ss {seek_to}"
     ffoptions = "-vn"
     if elvin:
         ffoptions += f" -af \"rubberband=tempo=1.0:pitch=1.5:pitchq=quality\""
@@ -57,6 +57,7 @@ class QueueItem:
     artist: str
     title: str
     duration: timedelta
+    position: Optional[timedelta]
     # ----
 
     elvinmode: bool

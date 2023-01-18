@@ -39,11 +39,14 @@ class YTDLProvider:
     name = "ytdl"
 
     @staticmethod
-    def url_from_id(id_: str) -> str:
-        return f"https://www.youtube.com/watch?v={id_}"
+    def url_from_id(id_: str, position=None) -> str:
+        url = f"https://www.youtube.com/watch?v={id_}"
+        if position:
+            url += f"&t={position.total_seconds()}"
+        return url
 
     @staticmethod
-    def get_construct_args(video_info, proxy_name) -> Dict:
+    def get_construct_args(video_info, proxy_name, position:timedelta=None) -> Dict:
         duration = video_info.get("duration")
         artist = video_info.get("artist")
         creator = video_info.get("creator")
@@ -54,18 +57,29 @@ class YTDLProvider:
         track = video_info.get("track")
         title = track or video_info.get("title")
         return {
-            "query": YTDLProvider.url_from_id(video_info["id"]),
+            "query": YTDLProvider.url_from_id(video_info["id"], position),
             "artist": channel,
             "title": title,
             "duration": timedelta(seconds=duration),
-            "cached_streaming_url": (proxy_name, video_info["url"])
+            "cached_streaming_url": (proxy_name, video_info["url"]),
+            "position": position
         }
 
     @staticmethod
     async def from_query(query: str) -> List[Dict]:
         proxy_name, playlist = await ytdl_query_autoproxy(query)
+        requested_position = None
+        if len(playlist) == 1:
+            url_args = dict(
+                arg.split("=")
+                for arg in query.split("?")[-1].split("&")
+            )
+            try:
+                requested_position = timedelta(seconds=int(url_args["t"]))
+            except (ValueError, KeyError):
+                pass
         return [
-            YTDLProvider.get_construct_args(vinfo, proxy_name)
+            YTDLProvider.get_construct_args(vinfo, proxy_name, position=requested_position)
             for vinfo in playlist
         ]
 
