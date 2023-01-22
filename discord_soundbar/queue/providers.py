@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 
 from datetime import timedelta
+from urllib import parse
 
 from .ytapi import youtube_search
 from .ytdl import ytdl_query_autoproxy
@@ -69,11 +70,8 @@ class YTDLProvider:
     async def from_query(query: str) -> List[Dict]:
         proxy_name, playlist = await ytdl_query_autoproxy(query)
         requested_position = None
-        if len(playlist) == 1:
-            url_args = dict(
-                arg.split("=")
-                for arg in query.split("?")[-1].split("&")
-            )
+        if len(playlist) == 1 and "?" in query:
+            url_args = parse.parse_qs(query.split("?")[-1])
             try:
                 requested_position = timedelta(seconds=int(url_args["t"]))
             except (ValueError, KeyError):
